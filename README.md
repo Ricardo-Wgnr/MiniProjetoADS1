@@ -9,7 +9,10 @@
 
 - Fator A - Algoritmo TCP
 - Fator B - BER no enlace entre roteadores
+- Fator C - Carga UDP de Background
 
 ## Parâmetros fixados
 
-- Carga UDP = 900 Mbps ?
+- Enlaces Ethernet 1 Gbps
+- Janela TCP default
+- Duração do teste: 30 segundos
