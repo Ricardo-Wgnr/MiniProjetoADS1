@@ -16,8 +16,8 @@ node n0 {
     }
     auto_default_routes enabled
     canvas c0
-    iconcoords {120 48}
-    labelcoords {120 79}
+    iconcoords {96 72}
+    labelcoords {96 103}
     interface-peer {eth0 n4}
 }
 
@@ -39,8 +39,8 @@ node n1 {
     }
     auto_default_routes enabled
     canvas c0
-    iconcoords {696 72}
-    labelcoords {696 103}
+    iconcoords {648 96}
+    labelcoords {648 127}
     interface-peer {eth0 n5}
 }
 
@@ -62,8 +62,8 @@ node n2 {
     }
     auto_default_routes enabled
     canvas c0
-    iconcoords {744 480}
-    labelcoords {744 511}
+    iconcoords {672 432}
+    labelcoords {672 463}
     interface-peer {eth0 n5}
 }
 
@@ -85,8 +85,8 @@ node n3 {
     }
     auto_default_routes enabled
     canvas c0
-    iconcoords {72 480}
-    labelcoords {72 511}
+    iconcoords {72 432}
+    labelcoords {72 463}
     interface-peer {eth0 n4}
 }
 
