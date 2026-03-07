@@ -32,7 +32,7 @@ def start_udp_load(value):
     
 
 def start_tcp_load():
-    cmd = f"sudo himage pc4 iperf -c 10.0.4.20 -t 10"
+    cmd = f"sudo himage pc4 iperf -c 10.0.4.20 -t 30"
     saida = run(cmd)
     return saida
 
@@ -68,69 +68,70 @@ def stop_tcpdump():
     cmd = "sudo himage pc4 pkill -f tcpdump"
     run(cmd)
 
-# for alg, ber in combinacoes:
-
-#     print("setup iniciado")
-#     set_tcp(alg)
-#     set_ber(ber)
-
-#     for repeticao in range(1,9):        
-
-#         print("start tcpdump")
-#         start_tcpdump()
-#         time.sleep(2)
-        
-#         print("start udp server")
-#         start_udp_server()
-#         time.sleep(1)
-#         print("start udp load")
-#         start_udp_load(udp_load)
-
-#         print("start tcp server")
-#         start_tcp_server()
-#         time.sleep(1)
-#         print("start tcp load")
-#         saida = start_tcp_load()
-
-#         # experimento
-#             # vazao media: coletar saida iperf receptor tcp
-#             # eficiencia: capturar com tcpdump, iniciar alguns segundos antes do iperf e terminar depois
-#             # extrair daddos bytes uteis x total com tshark
-#             # salvar csv
-#             # resetar memoria tcp
-
-# testes
+def reset_tcp_metrics():
+    run("sudo himage pc4 sysctl -w net.ipv4.tcp_no_metrics_save=1")
+    run("sudo himage pc3 sysctl -w net.ipv4.tcp_no_metrics_save=1")
 
 set_tcp(algoritmos[0])
 set_ber(bers[0])
 
-for repeticao in range(1,3):        
-    print("start tcpdump")
-    start_tcpdump()
-    time.sleep(2)
-    
-    print("start udp server")
-    start_udp_server()
-    time.sleep(1)
-    print("start udp load")
-    start_udp_load(udp_load)
-    print("start tcp server")
-    start_tcp_server()
-    time.sleep(1)
-    print("start tcp load")
-    saida_iperf = start_tcp_load()
-    stop_tcpdump()
-    time.sleep(1)
-    ls = run("sudo himage pc4 ls -lh")
-    saida_tshark = output_tshark()
-    stop_servers()
+set_tcp(algoritmos[0])
+set_ber(bers[0])
 
-    with open("iperf.txt", "a") as f:
-        f.write(saida_iperf)
+nome_arquivo_csv = "resultados_iperf.csv"
 
-    with open("tshark.txt", "a") as f:
-        f.write(ls)
-        for i in saida_tshark:
-            f.write(i)
+with open(nome_arquivo_csv, "w", newline='') as f:
+
+    writer = csv.writer(f)
+    writer.writerow(["exp_id", "repeticao", "algoritmoTcp", "ber", "udp_load", "vazao_mbps", "bytes_mbytes", "duracao_sec"])
+
+for alg, ber in combinacoes:
+
+    print("setup iniciado")
+    set_tcp(alg)
+    set_ber(ber)
+
+    for repeticao in range(1, 9):   
+
+        print(f"\n--- Iniciando repetição {repeticao} ---")
+        reset_tcp_metrics()
+
+        print("start udp server")
+        start_udp_server()
+        time.sleep(1)
+
+        print("start udp load")
+        start_udp_load(udp_load)
+
+        print("start tcp server")
+        start_tcp_server()
+        time.sleep(1)
+
+        print("start tcp load")
+        saida_iperf = start_tcp_load()
+
+        stop_servers()
+
+        vazao_mbps = 0.0
+        bytes_mbytes = 0.0
+        duracao_sec = 0.0
+
+        padrao = r'(\d+\.\d+)-\s*(\d+\.\d+)\s+sec\s+(\d+(?:\.\d+)?)\s+MBytes\s+(\d+(?:\.\d+)?)\s+Mbits/sec'
+        match = re.search(padrao, saida_iperf)
+
+        if match:
+            duracao_sec = float(match.group(2)) - float(match.group(1))
+            bytes_mbytes = float(match.group(3))
+            vazao_mbps = float(match.group(4))
+
+        exp_id = f"TCP_{alg}_BER_{ber}"
+
+        linha_csv = [exp_id, repeticao, alg, ber, udp_load, vazao_mbps, bytes_mbytes, duracao_sec]
+
+        with open(nome_arquivo_csv, "a", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(linha_csv)
+
+        print(f"Repetição {repeticao} salva! Vazão: {vazao_mbps} Mbits/sec")
 
 
