@@ -1,137 +1,176 @@
 import itertools
 import subprocess
 import csv
-from datetime import datetime
-import re
 import time
+import re
 
+# ===========================
+# Parâmetros do experimento
+# ===========================
 algoritmos = ["reno", "cubic"]
 bers = [1e-6, 1e-5]
-udp_load = 900
+udp_load = 900  # Mbps
+repeticoes = 8  # Número de repetições por combinação (conforme roteiro)
 
 combinacoes = list(itertools.product(algoritmos, bers))
 
+# ===========================
+# Funções utilitárias
+# ===========================
 def run(cmd):
+    """Executa comando e retorna stdout."""
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    return result.stdout
+    return result.stdout.strip()
 
 def popen(cmd):
+    """Executa comando em background."""
     subprocess.Popen(cmd, shell=True)
 
 def set_tcp(alg):
-    cmd = f"sudo himage pc4 sysctl -w net.ipv4.tcp_congestion_control={alg}"
-    run(cmd)
-    
+    run(f"sudo himage pc4 sysctl -w net.ipv4.tcp_congestion_control={alg}")
+
 def set_ber(value):
-    cmd = f"sudo vlink -BER {int(1/value)} router1:router2"
-    run(cmd)
+    run(f"sudo vlink -BER {int(1/value)} router1:router2")
 
 def start_udp_load(value):
-    cmd = f"sudo himage pc1 iperf -c 10.0.3.20 -u -t 40 -b{value}M"
-    return popen(cmd)
-    
+    popen(f"sudo himage pc1 iperf -c 10.0.3.20 -u -t 40 -b{value}M")
 
 def start_tcp_load():
-    cmd = f"sudo himage pc4 iperf -c 10.0.4.20 -t 30"
-    saida = run(cmd)
-    return saida
+    """Executa iperf TCP por 30 segundos (conforme roteiro)"""
+    return run("sudo himage pc4 iperf -c 10.0.4.20 -t 30")
 
 def start_tcp_server():
-    cmd = "sudo himage pc3 iperf -s"
-    popen(cmd)
+    popen("sudo himage pc3 iperf -s")
 
 def start_udp_server():
-    cmd = "sudo himage pc2 iperf -s -u"
-    popen(cmd)
+    popen("sudo himage pc2 iperf -s -u")
 
-def start_tcpdump():
-    cmd = "sudo himage pc4 tcpdump -i eth0 -w fluxo.pcap host 10.0.4.20 and tcp"
-    popen(cmd)
+def start_tcpdump(filename):
+    """Inicia tcpdump salvando em arquivo específico. Captura APENAS tcp do nosso host."""
+    popen(f"sudo himage pc4 tcpdump -i eth0 -w {filename} host 10.0.4.20 and tcp")
 
 def stop_servers():
-    cmd = "sudo himage pc2 pkill -f iperf"
-    run(cmd)
-    cmd = "sudo himage pc3 pkill -f iperf"
-    run(cmd)
-    cmd = "sudo himage pc1 pkill -f iperf"
-    run(cmd)
-
-def output_tshark():
-    cmd = "sudo himage pc4 tshark -r fluxo.pcap -T fields -e tcp.len | awk '{s+=$1} END {print s}'"
-    saida = []
-    saida.append(run(cmd))
-    cmd = "sudo himage pc4 tshark -r fluxo.pcap -T fields -e frame.len | awk '{s+=$1} END {print s}'"
-    saida.append(run(cmd))
-    return saida
+    for pc in ["pc1", "pc2", "pc3"]:
+        run(f"sudo himage {pc} pkill -f iperf")
 
 def stop_tcpdump():
-    cmd = "sudo himage pc4 pkill -f tcpdump"
-    run(cmd)
+    run("sudo himage pc4 pkill -f tcpdump")
 
 def reset_tcp_metrics():
+    """Limpa a memória de métricas do TCP no emissor e receptor para não viciar a próxima rodada"""
     run("sudo himage pc4 sysctl -w net.ipv4.tcp_no_metrics_save=1")
     run("sudo himage pc3 sysctl -w net.ipv4.tcp_no_metrics_save=1")
 
-set_tcp(algoritmos[0])
-set_ber(bers[0])
-
-set_tcp(algoritmos[0])
-set_ber(bers[0])
-
-nome_arquivo_csv = "resultados_iperf.csv"
-
-with open(nome_arquivo_csv, "w", newline='') as f:
-
-    writer = csv.writer(f)
-    writer.writerow(["exp_id", "repeticao", "algoritmoTcp", "ber", "udp_load", "vazao_mbps", "bytes_mbytes", "duracao_sec"])
-
-for alg, ber in combinacoes:
-
-    print("setup iniciado")
-    set_tcp(alg)
-    set_ber(ber)
-
-    for repeticao in range(1, 9):   
-
-        print(f"\n--- Iniciando repetição {repeticao} ---")
-        reset_tcp_metrics()
-
-        print("start udp server")
-        start_udp_server()
-        time.sleep(1)
-
-        print("start udp load")
-        start_udp_load(udp_load)
-
-        print("start tcp server")
-        start_tcp_server()
-        time.sleep(1)
-
-        print("start tcp load")
-        saida_iperf = start_tcp_load()
-
-        stop_servers()
-
-        vazao_mbps = 0.0
-        bytes_mbytes = 0.0
-        duracao_sec = 0.0
-
-        padrao = r'(\d+\.\d+)-\s*(\d+\.\d+)\s+sec\s+(\d+(?:\.\d+)?)\s+MBytes\s+(\d+(?:\.\d+)?)\s+Mbits/sec'
-        match = re.search(padrao, saida_iperf)
-
+# ===========================
+# Função para processar pcap e calcular eficiência
+# ===========================
+def process_pcap(filename):
+    """
+    Lê pcap via tcpdump com a flag -e (para ler tamanho do frame L2), 
+    soma bytes TCP (úteis) e bytes totais (frame L2 completo),
+    retorna (bytes_tcp, bytes_totais, eficiencia, tcpdump_output)
+    """
+    # Usando -e para expor o cabeçalho Ethernet e pegar o length total da camada 2
+    tcp_output = run(f"sudo himage pc4 tcpdump -nne -r {filename}")
+    
+    bytes_tcp = 0
+    bytes_totais = 0
+    
+    for linha in tcp_output.splitlines():
+        # Captura o primeiro length (Frame Total) e o último length (Payload TCP) da linha
+        match = re.search(r'length\s+(\d+):.*length\s+(\d+)', linha)
+        
         if match:
-            duracao_sec = float(match.group(2)) - float(match.group(1))
-            bytes_mbytes = float(match.group(3))
-            vazao_mbps = float(match.group(4))
+            tamanho_frame = int(match.group(1))
+            tamanho_payload = int(match.group(2))
+            
+            bytes_tcp += tamanho_payload
+            bytes_totais += tamanho_frame
+    
+    eficiencia = bytes_tcp / bytes_totais if bytes_totais > 0 else 0
+    return bytes_tcp, bytes_totais, eficiencia, tcp_output
 
-        exp_id = f"TCP_{alg}_BER_{ber}"
+# ===========================
+# Função para extrair média de vazão TCP do iperf
+# ===========================
+def media_vazao_iperf(saida_iperf):
+    """
+    Calcula média de todas as linhas de vazão do iperf.
+    Retorna valor em Mbps.
+    """
+    vazoes = []
+    for linha in saida_iperf.splitlines():
+        match = re.search(r'([\d\.]+)\s*Mbits/sec', linha)
+        if match:
+            vazoes.append(float(match.group(1)))
+    return sum(vazoes)/len(vazoes) if vazoes else 0.0
 
-        linha_csv = [exp_id, repeticao, alg, ber, udp_load, vazao_mbps, bytes_mbytes, duracao_sec]
+# ===========================
+# Experimento principal
+# ===========================
+with open("resultados.csv", "w", newline='') as csvfile, \
+     open("iperf.txt", "w") as f_iperf, \
+     open("tcpdump.txt", "w") as f_tcpdump:
 
-        with open(nome_arquivo_csv, "a", newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(linha_csv)
+    writer = csv.writer(csvfile)
+    # Cabeçalho formatado
+    writer.writerow(["Algoritmo", "BER", "Repeticao", "Bytes_TCP", "Bytes_Totais", "Eficiencia", "Vazao_TCP_Mbps"])
+    
+    for alg, ber in combinacoes:
+        print(f"\n{'='*40}")
+        print(f"=== Teste: {alg}, BER={ber} ===")
+        print(f"{'='*40}")
+        
+        set_tcp(alg)
+        set_ber(ber)
+        
+        for repeticao in range(1, repeticoes + 1):
+            print(f"\n--- Repetição {repeticao} ---")
+            
+            # Resetando métricas antes de iniciar
+            reset_tcp_metrics()
+            
+            pcap_file = f"fluxo_{alg}_{ber}_{repeticao}.pcap"
+            
+            print("Iniciando tcpdump...")
+            start_tcpdump(pcap_file)
+            time.sleep(2)  # espera tcpdump iniciar
+            
+            print("Iniciando servidor UDP e carga...")
+            start_udp_server()
+            time.sleep(1)
+            start_udp_load(udp_load)
+            
+            print("Iniciando servidor TCP...")
+            start_tcp_server()
+            time.sleep(1)  # espera servidor TCP iniciar
+            
+            print("Executando carga TCP (30 segundos)...")
+            saida_iperf = start_tcp_load()
+            
+            # Salva saída completa do iperf
+            f_iperf.write(f"\n=== {alg} BER={ber} Repetição {repeticao} ===\n")
+            f_iperf.write(saida_iperf + "\n")
+            
+            print("Parando captura tcpdump...")
+            stop_tcpdump()
+            time.sleep(2) # Dar tempo para o arquivo ser salvo no disco do emulador
+            
+            print("Parando servidores...")
+            stop_servers()
+            
+            print("Processando pcap e calculando eficiência...")
+            bytes_tcp, bytes_totais, eficiencia, tcpdump_output = process_pcap(pcap_file)
+            
+            # Salva saída completa do tcpdump
+            f_tcpdump.write(f"\n=== {alg} BER={ber} Repetição {repeticao} ===\n")
+            f_tcpdump.write(tcpdump_output + "\n")
+            
+            vazao_tcp = media_vazao_iperf(saida_iperf)
+            
+            print(f">>> Resultados: Bytes Úteis: {bytes_tcp} | Frame Total: {bytes_totais}")
+            print(f">>> Eficiência: {eficiencia:.4f} | Vazão TCP: {vazao_tcp:.2f} Mbps")
+            
+            writer.writerow([alg, ber, repeticao, bytes_tcp, bytes_totais, round(eficiencia, 4), vazao_tcp])
 
-        print(f"Repetição {repeticao} salva! Vazão: {vazao_mbps} Mbits/sec")
-
-
+print("\n🚀 Experimento finalizado com sucesso! Resultados salvos em 'resultados.csv', 'iperf.txt' e 'tcpdump.txt'.")

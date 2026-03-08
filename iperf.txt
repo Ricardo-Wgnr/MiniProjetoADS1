@@ -1,0 +1,108 @@
+
+=== reno BER=1e-06 Repetição 1 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 37066 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/191)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.2105 sec   195 MBytes   160 Mbits/sec
+
+=== reno BER=1e-06 Repetição 2 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 52032 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/115)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.2221 sec   183 MBytes   150 Mbits/sec
+
+=== reno BER=1e-06 Repetição 3 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 50718 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/132)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1447 sec   186 MBytes   154 Mbits/sec
+
+=== reno BER=1e-05 Repetição 1 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 45590 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/129)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.2052 sec   196 MBytes   161 Mbits/sec
+
+=== reno BER=1e-05 Repetição 2 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 38368 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/135)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1871 sec   195 MBytes   161 Mbits/sec
+
+=== reno BER=1e-05 Repetição 3 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 36808 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/322)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.2258 sec   191 MBytes   157 Mbits/sec
+
+=== cubic BER=1e-06 Repetição 1 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 53784 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/139)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1099 sec   184 MBytes   153 Mbits/sec
+
+=== cubic BER=1e-06 Repetição 2 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 55394 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/129)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1353 sec   188 MBytes   155 Mbits/sec
+
+=== cubic BER=1e-06 Repetição 3 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 50056 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/140)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1683 sec   191 MBytes   157 Mbits/sec
+
+=== cubic BER=1e-05 Repetição 1 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 55192 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/136)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.0950 sec   190 MBytes   158 Mbits/sec
+
+=== cubic BER=1e-05 Repetição 2 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 42390 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/147)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1289 sec   203 MBytes   168 Mbits/sec
+
+=== cubic BER=1e-05 Repetição 3 ===
+------------------------------------------------------------
+Client connecting to 10.0.4.20, TCP port 5001
+TCP window size: 16.0 KByte (default)
+------------------------------------------------------------
+[  1] local 10.0.1.20 port 41880 connected with 10.0.4.20 port 5001 (icwnd/mss/irtt=14/1448/152)
+[ ID] Interval       Transfer     Bandwidth
+[  1] 0.0000-10.1425 sec   181 MBytes   149 Mbits/sec
