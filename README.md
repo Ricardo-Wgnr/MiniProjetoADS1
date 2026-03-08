@@ -3,13 +3,12 @@
 ## Métricas
 
 - Vazão média do fluxo TCP (iperf);
-- Eficiência do fluxo TCP (tshark).
+- Eficiência do fluxo TCP (tshark/tcpdump).
 
 ## Fatores
 
 - Fator A - Algoritmo TCP
 - Fator B - BER no enlace entre roteadores
-- Fator C - Carga UDP de Background
 
 ## Parâmetros fixados
 
