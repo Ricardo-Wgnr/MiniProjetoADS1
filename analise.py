@@ -2,11 +2,29 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
+import glob
+import os
 
 # ==========================================================
-# 1. Carregamento dos Dados
+# 1. Carregamento e União dos Dados (ATUALIZADO)
 # ==========================================================
-df = pd.read_csv('resultados.csv')
+# Busca automaticamente todos os arquivos que começam com "resultados_BER_"
+arquivos_csv = glob.glob('resultados_BER_*.csv')
+
+if not arquivos_csv:
+    print("❌ Erro: Nenhum arquivo CSV encontrado! Verifique se eles estão na mesma pasta do script.")
+    exit()
+
+print(f"📥 Encontrados {len(arquivos_csv)} arquivos de resultados. Unindo dados...")
+
+# Lê todos os arquivos encontrados e empilha em um único DataFrame
+lista_dfs = [pd.read_csv(arquivo) for arquivo in arquivos_csv]
+df = pd.concat(lista_dfs, ignore_index=True)
+
+# Ordena os dados pela coluna BER para o eixo X do gráfico ficar na ordem crescente
+df = df.sort_values(by='BER')
+
+print(f"✅ Total de linhas carregadas: {len(df)}")
 
 # ==========================================================
 # 2. Função para calcular o Intervalo de Confiança (95%)
@@ -28,6 +46,7 @@ for var in variaveis_de_saida:
     print(f"ANÁLISE ESTATÍSTICA: {var}")
     print(f"{'='*50}")
     
+    # Agrupa por Algoritmo e BER e calcula as métricas
     resumo = df.groupby(['Algoritmo', 'BER'])[var].agg(
         Média=np.mean,
         Desvio_Padrão=np.std,
@@ -55,13 +74,12 @@ for var in variaveis_de_saida:
                capsize=8, alpha=0.8, edgecolor='black')
 
     # ==========================================================
-    # NOVIDADE: Ajuste Dinâmico do Eixo Y (O "Zoom")
+    # Ajuste Dinâmico do Eixo Y (Zoom)
     # ==========================================================
     min_val = (resumo['Média'] - resumo['IC_95']).min()
     max_val = (resumo['Média'] + resumo['IC_95']).max()
-    margem = (max_val - min_val) * 0.5 # Dá um respiro de 50% para cima e para baixo
+    margem = (max_val - min_val) * 0.5 
     
-    # Aplica o limite inferior e superior cortando o zero se for muito alto
     ax.set_ylim(max(0, min_val - margem), max_val + margem)
 
     # Configuração de Títulos e Eixos
@@ -79,6 +97,6 @@ for var in variaveis_de_saida:
     plt.tight_layout()
     nome_arquivo = f'grafico_{var.lower()}.png'
     plt.savefig(nome_arquivo, dpi=300)
-    print(f"\n[OK] Gráfico gerado e salvo como: {nome_arquivo}")
+    print(f"[OK] Gráfico gerado e salvo como: {nome_arquivo}")
 
-print("\n🎉 Gráficos atualizados com sucesso!")
+print("\n🎉 Todos os gráficos e análises foram atualizados com sucesso!")
