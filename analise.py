@@ -2,29 +2,21 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-import glob
-import os
 
 # ==========================================================
-# 1. Carregamento e União dos Dados (ATUALIZADO)
+# 1. Carregamento dos Dados
 # ==========================================================
-# Busca automaticamente todos os arquivos que começam com "resultados_BER_"
-arquivos_csv = glob.glob('resultados_BER_*.csv')
+arquivo_alvo = 'resultados_finais_completos.csv'
 
-if not arquivos_csv:
-    print("❌ Erro: Nenhum arquivo CSV encontrado! Verifique se eles estão na mesma pasta do script.")
+try:
+    df = pd.read_csv(arquivo_alvo)
+    print(f"📥 Arquivo '{arquivo_alvo}' carregado com sucesso!")
+except FileNotFoundError:
+    print(f"❌ Erro: O arquivo '{arquivo_alvo}' não foi encontrado na pasta.")
     exit()
-
-print(f"📥 Encontrados {len(arquivos_csv)} arquivos de resultados. Unindo dados...")
-
-# Lê todos os arquivos encontrados e empilha em um único DataFrame
-lista_dfs = [pd.read_csv(arquivo) for arquivo in arquivos_csv]
-df = pd.concat(lista_dfs, ignore_index=True)
 
 # Ordena os dados pela coluna BER para o eixo X do gráfico ficar na ordem crescente
 df = df.sort_values(by='BER')
-
-print(f"✅ Total de linhas carregadas: {len(df)}")
 
 # ==========================================================
 # 2. Função para calcular o Intervalo de Confiança (95%)
@@ -53,7 +45,10 @@ for var in variaveis_de_saida:
         IC_95=confidence_interval
     ).reset_index()
     
-    print(resumo.to_string(index=False))
+    # [NOVIDADE]: Cria uma cópia só para a tabela de texto ficar bonita no terminal
+    resumo_tabela = resumo.copy()
+    resumo_tabela['BER'] = resumo_tabela['BER'].apply(lambda x: f"10^{int(np.log10(x))}")
+    print(resumo_tabela.to_string(index=False))
     
     algoritmos = resumo['Algoritmo'].unique()
     bers = resumo['BER'].unique()
@@ -73,9 +68,6 @@ for var in variaveis_de_saida:
         ax.bar(posicao, medias, width, yerr=erros, label=alg.capitalize(), 
                capsize=8, alpha=0.8, edgecolor='black')
 
-    # ==========================================================
-    # Ajuste Dinâmico do Eixo Y (Zoom)
-    # ==========================================================
     min_val = (resumo['Média'] - resumo['IC_95']).min()
     max_val = (resumo['Média'] + resumo['IC_95']).max()
     margem = (max_val - min_val) * 0.5 
@@ -88,7 +80,10 @@ for var in variaveis_de_saida:
     ax.set_title(f'Efeito Principal: Algoritmo e BER na {var}\n(Intervalo de Confiança de 95%)', fontsize=14)
     ax.set_xticks(x)
     
-    ax.set_xticklabels([f'{ber:.0e}' for ber in bers])
+    # [NOVIDADE]: Renderiza a BER como notação matemática real no eixo X do gráfico (ex: 10^{-5})
+    rotulos_ber = [f'$10^{{{int(np.log10(ber))}}}$' for ber in bers]
+    ax.set_xticklabels(rotulos_ber, fontsize=14)
+    
     ax.legend(title="Algoritmo TCP", loc='best')
     
     ax.yaxis.grid(True, linestyle='--', alpha=0.7)
