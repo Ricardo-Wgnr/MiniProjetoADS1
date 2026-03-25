@@ -9,7 +9,6 @@ import math  # Adicionado para formatar a BER elegantemente
 # =================================================================
 algoritmos = ["reno", "cubic"]
 
-# COLOQUE AQUI TODAS AS BERS QUE DESEJA TESTAR EM UMA ÚNICA RODADA!
 bers_para_testar = [1e-5, 1e-6]
 
 udp_load = 900  # Mbps
