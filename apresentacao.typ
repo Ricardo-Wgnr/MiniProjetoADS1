@@ -1,4 +1,5 @@
 #import "@preview/diatypst:0.9.1": *
+#import "@preview/mmdr:0.2.1": mermaid
 
 #set text(size: 1.1em, lang: "pt")
 #set figure.caption(position: top)
@@ -45,7 +46,7 @@
 
 == Objetivo
 
-A proposta desse miniprojeto consiste em analisar uma situação de transmissão tcp com uma carga UDP intensa passando simultaneamente pelo mesmo link (congestionamento). Para análise, foi feito um experimento que terá parâmetros fixados, variáveis de saída e também fatores que serão variados. O experimento deve ser realizado com 8 repetições para cada configuração e deve se fazer todas as combinações possíveis de fatores. No nosso caso 2², já que temos 2 fatores.
+A proposta desse miniprojeto consiste em analisar uma situação de transmissão TCP com uma carga UDP intensa passando simultaneamente pelo mesmo link (congestionamento), verificando qual algoritmo TCP (Reno ou Cubic) se sai melhor. Para análise, foi feito um experimento que terá parâmetros fixados, variáveis de saída e também fatores que serão variados. O experimento deve ser realizado com 8 repetições para cada configuração e deve se fazer todas as combinações possíveis de fatores. No nosso caso 2², já que temos 2 fatores.
 
 
 == Objetivo
@@ -85,206 +86,83 @@ A proposta desse miniprojeto consiste em analisar uma situação de transmissão
 
 = Metodologia
 
-== Script utilizado
+== Metodologia
+
 Neste trabalho, foi utilizado o software IMUNES para a criação da simulação da rede. Além disso, empregamos a linguagem Python para automatizar os processos de coleta e análise de dados. Essas duas funções foram organizadas em códigos distintos: o script.py, responsável pela coleta, e o analise.py, dedicado à análise dos dados.
-#show raw: set text(size: 11pt)
 
-#show raw.where(block: true): set text(size: 9pt)
+== Loop Principal
+
+#align(center + horizon)[
+
+#mermaid("
+flowchart TD
+Start([Início]) --> A[Escolher BER]
+A[Escolhe BER] --> B[Escolher Algoritmo]
+B --> C[Realiza experimento 8 vezes]
+C --> D{Passou pelos 2 algoritmos?}
+D -->|Não| B
+D --> |Sim| E{Passou por todas BERs?}
+E --> |Não| A
+E --> |Sim| F([Fim])
+")
+]
+
+== Cálculo da eficiência e set da BER
+
+- Tentamos utilizar o comando tshark disponibilizado para o cálculo da eficiência e vlink para alterar a BER, mas não obtivemos resultados satisfatórios.
+
+- No caso da BER, ela não alterava, então buscamos inserir uma perda em porcentagem equivalente a essa BER.
+
+- Já para o cálculo da eficiencia, fizemos uma busca utilizando regex no próprio pcap.
+
+- Vamos mostrar os trechos de código a seguir:
+
+== Set da BER
+
+#show raw: set text(size: 8pt)
 
 ```py
-# =================================================================
-# Parâmetros do experimento (AUTOMAÇÃO TOTAL)
-# =================================================================
-algoritmos = ["reno", "cubic"]
+def set_packet_loss(ber):
+    # Converte a BER em taxa de perda de pacotes (%) e aplica direto no kernel do PC4.
+    if ber == 0:
+        loss_percent = 0.0
+        ber_texto = "0"
+    else:
+        prob_sucesso_pacote = (1 - ber) ** 12000
+        prob_perda_pacote = 1 - prob_sucesso_pacote
+        loss_percent = prob_perda_pacote * 100
+        ber_texto = f"10^{int(math.log10(ber))}" # Transforma 1e-05 em 10^-5
 
-bers_para_testar = [1e-5, 1e-6]
-
-udp_load = 900  # Mbps
-repeticoes = 8  # Número de repetições por combinação
-# =================================================================
+    # 1. Apaga qualquer regra de controle de tráfego antiga na interface eth0 do PC4
+    run("sudo himage pc4 tc qdisc del dev eth0 root 2>/dev/null")
+    
+    # 2. Aplica a nova regra de perda de pacotes
+    if loss_percent > 0:
+        run(f"sudo himage pc4 tc qdisc add dev eth0 root netem loss {loss_percent:.4f}%")
 ```
 
-
-== script.py
+== Cálculo da eficiencia
 
 ```py
-# ===========================
-# Execução Principal
-# ===========================
-nome_csv = "resultados_finais_completos.csv"
-nome_txt = "iperf_logs_completos.txt"
+def process_pcap(filename):
+    tcp_output = run(f"sudo himage pc4 tcpdump -nne -r {filename}")
 
-with open(nome_csv, "w", newline='') as csvfile, \
-     open(nome_txt, "w") as f_iperf:
-
-    writer = csv.writer(csvfile)
-    writer.writerow(["Algoritmo", "BER", "Repeticao", "Bytes_TCP", "Bytes_Totais", "Eficiencia", "Vazao_TCP_Mbps"])
+    bytes_tcp = 0
+    bytes_totais = 0
     
-    for ber_atual in bers_para_testar:
-        # Formata para texto bonito
-        ber_texto = f"10^{int(math.log10(ber_atual))}" if ber_atual > 0 else "0"
-        
-        print(f"\n{'#'*60}")
-        print(f"🚀 INICIANDO BATERIA PARA BER = {ber_texto}")
-        print(f"{'#'*60}")
-        
-        # Injeta a perda de pacotes direto no Linux do PC4!
-        set_packet_loss(ber_atual)
-        
-        for alg in algoritmos:
-            print(f"\n{'='*40}")
-            print(f"=== Teste: {alg} | BER: {ber_texto} ===")
-            print(f"{'='*40}")
+    for linha in tcp_output.splitlines():
+        match = re.search(r'length\s+(\d+):.*length\s+(\d+)', linha)
+        if match:
+            tamanho_frame = int(match.group(1))
+            tamanho_payload = int(match.group(2))
             
-            set_tcp(alg)
-            
-            for repeticao in range(1, repeticoes + 1):
-                print(f"\n--- Repetição {repeticao} ---")
-                
-                reset_tcp_metrics()
-                
-                # Mantivemos o número decimal normal pro nome do arquivo não bugar no Linux
-                pcap_file = f"fluxo_{alg}_{ber_atual}_{repeticao}.pcap"
-                
-                print("Iniciando tcpdump...")
-                start_tcpdump(pcap_file)
-                time.sleep(2)
-                
-                print("Iniciando servidor UDP e carga...")
-                start_udp_server()
-                time.sleep(1)
-                start_udp_load(udp_load)
-                
-                print("Iniciando servidor TCP...")
-                start_tcp_server()
-                time.sleep(1)
-                
-                print("Executando carga TCP (30 segundos)...")
-                saida_iperf = start_tcp_load()
-                
-                f_iperf.write(f"\n=== {alg} BER={ber_texto} Repetição {repeticao} ===\n")
-                f_iperf.write(saida_iperf + "\n")
-                
-                print("Parando captura tcpdump...")
-                stop_tcpdump()
-                time.sleep(2)
-                
-                print("Parando servidores...")
-                stop_servers()
-                
-                print("Processando pcap via tcpdump com Regex...")
-                bytes_tcp, bytes_totais, eficiencia, tcpdump_output = process_pcap(pcap_file)
-                
-                print("Apagando .pcap para liberar memória da máquina virtual...")
-                run(f"sudo himage pc4 rm {pcap_file}")
-                
-                vazao_tcp = media_vazao_iperf(saida_iperf)
-                
-                print(f">>> Resultados: Bytes Úteis: {bytes_tcp} | Frame Total: {bytes_totais}")
-                print(f">>> Eficiência: {eficiencia:.4f} | Vazão TCP: {vazao_tcp:.2f} Mbps")
-                
-                # O CSV continua recebendo a variável ber_atual (ex: 1e-05) pro script de gráficos funcionar!
-                writer.writerow([alg, ber_atual, repeticao, bytes_tcp, bytes_totais, round(eficiencia, 4), vazao_tcp])
-
-print(f"\n🎉 Experimento 100% concluído! Todos os dados estão consolidados no arquivo '{nome_csv}'.")
+            bytes_tcp += tamanho_payload
+            bytes_totais += tamanho_frame
+    
+    eficiencia = bytes_tcp / bytes_totais if bytes_totais > 0 else 0
+    return bytes_tcp, bytes_totais, eficiencia, tcp_output
 ```
 
-
-== analise.py
-```py
-# ==========================================================
-# 1. Carregamento dos Dados
-# ==========================================================
-arquivo_alvo = 'resultados_finais_completos.csv'
-
-try:
-    df = pd.read_csv(arquivo_alvo)
-    print(f"📥 Arquivo '{arquivo_alvo}' carregado com sucesso!")
-except FileNotFoundError:
-    print(f"❌ Erro: O arquivo '{arquivo_alvo}' não foi encontrado na pasta.")
-    exit()
-
-# Ordena os dados pela coluna BER para o eixo X do gráfico ficar na ordem crescente
-df = df.sort_values(by='BER')
-
-# ==========================================================
-# 2. Função para calcular o Intervalo de Confiança (95%)
-# ==========================================================
-def confidence_interval(data, confidence=0.95):
-    n = len(data)
-    m = np.mean(data)
-    std_err = stats.sem(data)
-    h = std_err * stats.t.ppf((1 + confidence) / 2, n - 1)
-    return h
-
-# ==========================================================
-# 3. Análise e Geração de Tabelas e Gráficos
-# ==========================================================
-variaveis_de_saida = ['Vazao_TCP_Mbps', 'Eficiencia']
-
-for var in variaveis_de_saida:
-    print(f"\n{'='*50}")
-    print(f"ANÁLISE ESTATÍSTICA: {var}")
-    print(f"{'='*50}")
-    
-    # Agrupa por Algoritmo e BER e calcula as métricas
-    resumo = df.groupby(['Algoritmo', 'BER'])[var].agg(
-        Média=np.mean,
-        Desvio_Padrão=np.std,
-        IC_95=confidence_interval
-    ).reset_index()
-    
-    # [NOVIDADE]: Cria uma cópia só para a tabela de texto ficar bonita no terminal
-    resumo_tabela = resumo.copy()
-    resumo_tabela['BER'] = resumo_tabela['BER'].apply(lambda x: f"10^{int(np.log10(x))}")
-    print(resumo_tabela.to_string(index=False))
-    
-    algoritmos = resumo['Algoritmo'].unique()
-    bers = resumo['BER'].unique()
-    
-    x = np.arange(len(bers))
-    width = 0.35
-    
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    for i, alg in enumerate(algoritmos):
-        dados_alg = resumo[resumo['Algoritmo'] == alg]
-        medias = dados_alg['Média'].values
-        erros = dados_alg['IC_95'].values
-        
-        posicao = x - width/2 if i == 0 else x + width/2
-        
-        ax.bar(posicao, medias, width, yerr=erros, label=alg.capitalize(), 
-               capsize=8, alpha=0.8, edgecolor='black')
-
-    min_val = (resumo['Média'] - resumo['IC_95']).min()
-    max_val = (resumo['Média'] + resumo['IC_95']).max()
-    margem = (max_val - min_val) * 0.5 
-    
-    ax.set_ylim(max(0, min_val - margem), max_val + margem)
-
-    # Configuração de Títulos e Eixos
-    ax.set_xlabel('Taxa de Erro de Bit (BER)', fontsize=12)
-    ax.set_ylabel(f'{var}', fontsize=12)
-    ax.set_title(f'Efeito Principal: Algoritmo e BER na {var}\n(Intervalo de Confiança de 95%)', fontsize=14)
-    ax.set_xticks(x)
-    
-    # [NOVIDADE]: Renderiza a BER como notação matemática real no eixo X do gráfico (ex: 10^{-5})
-    rotulos_ber = [f'$10^{{{int(np.log10(ber))}}}$' for ber in bers]
-    ax.set_xticklabels(rotulos_ber, fontsize=14)
-    
-    ax.legend(title="Algoritmo TCP", loc='best')
-    
-    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
-    ax.set_axisbelow(True)
-    
-    plt.tight_layout()
-    nome_arquivo = f'grafico_{var.lower()}.png'
-    plt.savefig(nome_arquivo, dpi=300)
-    print(f"[OK] Gráfico gerado e salvo como: {nome_arquivo}")
-
-print("\n🎉 Todos os gráficos e análises foram atualizados com sucesso!")
-```
 = Resultados
 
 == Vazão Média
