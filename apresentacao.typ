@@ -94,17 +94,7 @@ Neste trabalho, foi utilizado o software IMUNES para a criação da simulação 
 
 #align(center + horizon)[
 
-#mermaid("
-flowchart TD
-Start([Início]) --> A[Escolher BER]
-A[Escolhe BER] --> B[Escolher Algoritmo]
-B --> C[Realiza experimento 8 vezes]
-C --> D{Passou pelos 2 algoritmos?}
-D -->|Não| B
-D --> |Sim| E{Passou por todas BERs?}
-E --> |Não| A
-E --> |Sim| F([Fim])
-")
+#image("Diagrama1.png")
 ]
 
 == Cálculo da eficiência e set da BER
